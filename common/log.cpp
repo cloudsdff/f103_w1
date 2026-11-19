@@ -42,7 +42,7 @@ void log_v(LogLevel lv, const char* fmt, va_list ap)
   const bool locked = (g_log_mutex != nullptr) &&
                       (osKernelGetState() == osKernelRunning);
   if (locked) {
-    osMutexAcquire(g_log_mutex, osWaitForever);
+    if (osMutexAcquire(g_log_mutex, 100) != osOK) return;   // ????????,??????
   }
 
   std::printf("[%s][%lu] ", tag_of(lv),

@@ -43,6 +43,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_tx;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -72,6 +73,7 @@ const osThreadAttr_t task_log_attributes = {
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void *argument);
 void StartTaskLed(void *argument);
@@ -117,6 +119,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   printf("\r\n===== D2 boot test =====\r\n");
@@ -258,6 +261,22 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
 
 }
 
