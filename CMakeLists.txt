@@ -56,6 +56,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     app/app_main.cpp
     bsp/bsp_uart.cpp
     common/log.cpp
+    bsp/bsp_i2c.cpp
+    modules/mpu6050/mpu6050.cpp
 )
 
 # Add include paths
@@ -65,6 +67,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/bsp
     ${CMAKE_SOURCE_DIR}/common
     ${CMAKE_SOURCE_DIR}/modules
+    ${CMAKE_SOURCE_DIR}/modules/mpu6050
 )
 
 # Add project symbols (macros)
