@@ -293,10 +293,12 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 /* printf retarget: newlib _write() calls __io_putchar() per byte (see syscalls.c) */
+/* printf sink goes through bsp layer; see bsp/bsp_uart.cpp */
+extern int bsp_uart1_putchar(int ch);
+
 int __io_putchar(int ch)
 {
-  HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFF);
-  return ch;
+  return bsp_uart1_putchar(ch);
 }
 /* USER CODE END 4 */
 
