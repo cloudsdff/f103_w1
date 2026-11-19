@@ -83,6 +83,8 @@ void StartTaskLog(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/* ????? C ??,??? common/log.cpp */
+extern void common_log_info(const char *fmt, ...);
 
 /* USER CODE END 0 */
 
@@ -354,7 +356,7 @@ void StartTaskLog(void *argument)
   for (;;)
   {
     cnt++;
-    printf("task_log cnt=%lu stack_free=%lu\r\n",
+    common_log_info("task_log cnt=%lu stack_free=%lu",
            (unsigned long)cnt,
            (unsigned long)osThreadGetStackSpace(osThreadGetId()));
     osDelay(500);

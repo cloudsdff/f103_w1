@@ -2,9 +2,9 @@
  * @file    log.hpp
  * @brief   统一日志接口 —— 任务01 工程要求 4（统一日志，禁止静默失败）
  *
- * 当前版本：同步输出（走 newlib printf → __io_putchar → USART1）
- * D13 计划：改成「队列 + 低优先级任务」异步输出，避免阻塞业务任务
- *          （实测：一行 33 字节 @115200 要 ~2.9 ms，同步打印会吃掉实时性）
+ * 当前实现：同步输出（printf → bsp 层 → USART1），但加了一把互斥锁，
+ *          保证多任务同时打印时不会把 newlib 的内部状态搞坏。
+ * D13 计划：改成「队列 + 低优先级任务」异步输出（实测一行 33 B @115200 约 2.9 ms）。
  *
  * 用法：
  *   LOG_I("cnt=%lu", (unsigned long)cnt);
@@ -14,9 +14,8 @@
 #define COMMON_LOG_HPP
 
 #include <cstdarg>
-#include <cstdio>
+#include <cstdint>
 
-#include "main.h"        ///< 仅为 HAL_GetTick() 提供时间戳；业务层不要直接调 HAL
 #include "error_code.hpp"
 
 namespace common {
@@ -28,17 +27,11 @@ enum class LogLevel : std::uint8_t { Debug = 0, Info, Warn, Error };
 #define LOG_LEVEL 3
 #endif
 
-inline void log_impl(LogLevel lv, const char* fmt, ...)
-{
-  static const char* kTag[] = {"D", "I", "W", "E"};
-  std::printf("[%s][%lu] ", kTag[static_cast<int>(lv)],
-              static_cast<unsigned long>(HAL_GetTick()));
-  va_list ap;
-  va_start(ap, fmt);
-  std::vprintf(fmt, ap);
-  va_end(ap);
-  std::printf("\r\n");
-}
+/// 创建日志互斥锁。必须在启动调度器之前调用一次（app_init 里）。
+void log_init();
+
+/// 实际输出：加锁 → 打印时间戳与正文 → 解锁
+void log_impl(LogLevel lv, const char* fmt, ...);
 
 }  // namespace common
 

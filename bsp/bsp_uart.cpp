@@ -59,6 +59,7 @@ class Uart1 final : public Uart {
   {
     if (data == nullptr || len == 0) return common::Err::InvalidParam;
     if (len > kTxBufSize) return common::Err::Overflow;    // 明确告知装不下，不静默截断
+    if (kHuart->hdmatx == nullptr) return common::Err::NotInit;  // CubeMX 里没开 DMA
     if (g_tx_busy) return common::Err::Busy;               // 上一帧没发完
 
     // 先拷进内部缓冲：DMA 在后台读这块内存，调用方的缓冲随时可能被复用
