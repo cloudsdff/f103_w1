@@ -123,6 +123,8 @@ int main(void)
          (unsigned long)HAL_RCC_GetHCLKFreq(),
          (unsigned long)HAL_RCC_GetPCLK1Freq(),
          (unsigned long)HAL_RCC_GetPCLK2Freq());
+  extern void app_init(void);   /* ??? app/app_main.cpp (C++17) */
+  app_init();
   /* USER CODE END 2 */
 
   /* Init scheduler */
