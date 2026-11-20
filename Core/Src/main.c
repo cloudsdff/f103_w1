@@ -42,6 +42,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+CAN_HandleTypeDef hcan;
+
 I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef huart1;
@@ -78,6 +80,7 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_CAN_Init(void);
 void StartDefaultTask(void *argument);
 void StartTaskLed(void *argument);
 void StartTaskLog(void *argument);
@@ -125,6 +128,7 @@ int main(void)
   MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_I2C1_Init();
+  MX_CAN_Init();
   /* USER CODE BEGIN 2 */
   printf("\r\n===== D2 boot test =====\r\n");
   printf("SYSCLK=%lu HCLK=%lu PCLK1=%lu PCLK2=%lu\r\n",
@@ -233,6 +237,43 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief CAN Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CAN_Init(void)
+{
+
+  /* USER CODE BEGIN CAN_Init 0 */
+
+  /* USER CODE END CAN_Init 0 */
+
+  /* USER CODE BEGIN CAN_Init 1 */
+
+  /* USER CODE END CAN_Init 1 */
+  hcan.Instance = CAN1;
+  hcan.Init.Prescaler = 4;
+  hcan.Init.Mode = CAN_MODE_NORMAL;
+  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
+  hcan.Init.TimeSeg1 = CAN_BS1_15TQ;
+  hcan.Init.TimeSeg2 = CAN_BS2_2TQ;
+  hcan.Init.TimeTriggeredMode = DISABLE;
+  hcan.Init.AutoBusOff = DISABLE;
+  hcan.Init.AutoWakeUp = DISABLE;
+  hcan.Init.AutoRetransmission = DISABLE;
+  hcan.Init.ReceiveFifoLocked = DISABLE;
+  hcan.Init.TransmitFifoPriority = DISABLE;
+  if (HAL_CAN_Init(&hcan) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CAN_Init 2 */
+
+  /* USER CODE END CAN_Init 2 */
+
 }
 
 /**

@@ -57,6 +57,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     bsp/bsp_uart.cpp
     common/log.cpp
     bsp/bsp_i2c.cpp
+    bsp/bsp_can.cpp
     modules/mpu6050/mpu6050.cpp
 )
 
@@ -84,3 +85,9 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
     # Add user defined libraries
 )
+
+# ?? CAN ??:???? A ??(?? 0x123),? -DCAN_NODE_B=ON ?? B ??(?? 0x456)
+option(CAN_NODE_B "Build firmware for CAN node B" OFF)
+if(CAN_NODE_B)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE CAN_NODE_B=1)
+endif()
