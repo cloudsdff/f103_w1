@@ -31,6 +31,12 @@ constexpr std::uint32_t kMyId = 0x123;
 constexpr std::uint32_t kPeerId = 0x456;
 #endif
 
+#ifdef STACK_TEST_SMALL
+constexpr std::uint32_t kCommStack = 200;   // 失败路径测试：故意给不够的栈
+#else
+constexpr std::uint32_t kCommStack = 1024;
+#endif
+
 module::Mpu6050 g_mpu(bsp::i2c1);
 osThreadId_t g_comm_id = nullptr;
 osThreadId_t g_sensor_id = nullptr;
@@ -96,6 +102,12 @@ void comm_task(void* arg)
             static_cast<unsigned long>(bsp::can1.busoff_count()),
             static_cast<unsigned long>(common::log_sent()),
             static_cast<unsigned long>(common::log_dropped()));
+#ifdef LOG_OVERFLOW_TEST
+      // ??????:??? 40 ?,?????? 12,????
+      for (int i = 0; i < 40; ++i) {
+        LOG_I("burst %d", i);
+      }
+#endif
       LOG_I("stack free: Comm=%lu Sensor=%lu",
             static_cast<unsigned long>(osThreadGetStackSpace(g_comm_id)),
             static_cast<unsigned long>(osThreadGetStackSpace(g_sensor_id)));
@@ -156,7 +168,7 @@ extern "C" void app_init(void)
         static_cast<unsigned long>(kPeerId));
 
   const osThreadAttr_t comm_attr = {
-      .name = "Comm", .stack_size = 1024, .priority = osPriorityAboveNormal};
+      .name = "Comm", .stack_size = kCommStack, .priority = osPriorityAboveNormal};
   g_comm_id = osThreadNew(comm_task, nullptr, &comm_attr);
   if (g_comm_id == nullptr) LOG_E("create Comm failed");
 

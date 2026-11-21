@@ -56,6 +56,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     app/app_main.cpp
     bsp/bsp_uart.cpp
     common/log.cpp
+    common/rtos_hooks.c
     bsp/bsp_i2c.cpp
     bsp/bsp_can.cpp
     modules/mpu6050/mpu6050.cpp
@@ -90,4 +91,11 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 option(CAN_NODE_B "Build firmware for CAN node B" OFF)
 if(CAN_NODE_B)
     target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE CAN_NODE_B=1)
+endif()
+if(LOG_OVERFLOW_TEST)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE LOG_OVERFLOW_TEST=1)
+endif()
+
+if(STACK_TEST_SMALL)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE STACK_TEST_SMALL=1)
 endif()

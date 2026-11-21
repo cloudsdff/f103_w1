@@ -118,3 +118,12 @@ extern "C" void common_log_info(const char* fmt, ...)
   va_end(ap);
   ::common::log_impl(::common::LogLevel::Info, "%s", body);
 }
+/* ????:?????,???/???????(???????) */
+extern "C" void common_log_sync(const char* s)
+{
+  while (*s != '\0') {
+    std::uint8_t ch = static_cast<std::uint8_t>(*s);
+    (void)HAL_UART_Transmit(&huart1, &ch, 1, 5);
+    ++s;
+  }
+}
