@@ -1,26 +1,33 @@
 /**
  * @file    log.cpp
- * @brief   统一日志的实现（带互斥锁）
+ * @brief   异步日志实现：业务任务入队，Log 任务负责发送
  *
- * 为什么要锁：newlib 的 printf 不是线程安全的。两个任务同时打印，
- * 会破坏它内部的 FILE 结构，轻则输出错行，重则直接 HardFault。
- * 这里用一把 CMSIS-RTOS2 的互斥锁把打印串起来。
- *
- * 对外提供两种入口：
- *   C++：LOG_I / LOG_W / LOG_E 宏 → common::log_impl
- *   C  ：common_log_info("...", ...)  → 供 CubeMX 生成的 main.c 使用
+ * 线程安全：
+ *   - 生产者只调 vsnprintf（可重入）+ osMessageQueuePut（线程安全），不需要锁
+ *   - 消费者只有一个（Log 任务），printf 不会被并发调用
+ *   - 队列满时丢弃并计数，绝不阻塞业务任务
  */
 #include "log.hpp"
 
 #include <cstdio>
+#include <cstring>
 
 #include "cmsis_os2.h"
-#include "main.h"      // HAL_GetTick()
+#include "main.h"      // huart1 / HAL_GetTick()
+
+extern "C" {
+extern UART_HandleTypeDef huart1;
+}
 
 namespace common {
 namespace {
 
-osMutexId_t g_log_mutex = nullptr;
+constexpr std::size_t kSlotSize = 80;    // 单条日志最大长度（含前缀）
+constexpr std::size_t kQueueDepth = 12;   // 8 × 96 = 768 B RAM
+
+osMessageQueueId_t g_queue = nullptr;
+volatile std::uint32_t g_dropped = 0;
+volatile std::uint32_t g_sent = 0;
 
 const char* tag_of(LogLevel lv)
 {
@@ -28,51 +35,86 @@ const char* tag_of(LogLevel lv)
   return kTag[static_cast<int>(lv)];
 }
 
+/// 直接写串口（只允许 Log 任务或内核启动前调用）
+void emit(const char* s)
+{
+  while (*s != '\0') {
+    std::uint8_t ch = static_cast<std::uint8_t>(*s);
+    (void)HAL_UART_Transmit(&huart1, &ch, 1, 10);
+    ++s;
+  }
+}
+
+/// Log 任务：从队列取字符串，慢慢发给串口
+void log_task(void* arg)
+{
+  (void)arg;
+  char buf[kSlotSize];
+  for (;;) {
+    if (osMessageQueueGet(g_queue, buf, nullptr, osWaitForever) == osOK) {
+      emit(buf);
+      ++g_sent;
+    }
+  }
+}
+
 }  // namespace
 
 void log_init()
 {
-  if (g_log_mutex != nullptr) return;
-  g_log_mutex = osMutexNew(nullptr);   // 允许在调度器启动前创建
+  if (g_queue != nullptr) return;
+
+  g_queue = osMessageQueueNew(kQueueDepth, kSlotSize, nullptr);
+
+  const osThreadAttr_t attr = {
+      .name = "log_task", .stack_size = 512, .priority = osPriorityBelowNormal1};
+  (void)osThreadNew(log_task, nullptr, &attr);
 }
 
-void log_v(LogLevel lv, const char* fmt, va_list ap)
-{
-  // 调度器还没跑起来时（例如 main 里的初始化日志）直接打印，不加锁
-  const bool locked = (g_log_mutex != nullptr) &&
-                      (osKernelGetState() == osKernelRunning);
-  if (locked) {
-    if (osMutexAcquire(g_log_mutex, 100) != osOK) return;   // ????????,??????
-  }
-
-  std::printf("[%s][%lu] ", tag_of(lv),
-              static_cast<unsigned long>(HAL_GetTick()));
-  std::vprintf(fmt, ap);
-  std::printf("\r\n");
-
-  if (locked) {
-    osMutexRelease(g_log_mutex);
-  }
-}
+std::uint32_t log_dropped() { return g_dropped; }
+std::uint32_t log_sent() { return g_sent; }
 
 void log_impl(LogLevel lv, const char* fmt, ...)
 {
+  // 只用一块缓冲：先写前缀，再在剩余空间里格式化正文（省一半栈）
+  char line[kSlotSize];
+  const int n = std::snprintf(line, sizeof(line), "[%s][%lu] ", tag_of(lv),
+                              static_cast<unsigned long>(HAL_GetTick()));
   va_list ap;
   va_start(ap, fmt);
-  log_v(lv, fmt, ap);
+  if (n > 0 && static_cast<std::size_t>(n) < sizeof(line)) {
+    std::vsnprintf(line + n, sizeof(line) - static_cast<std::size_t>(n), fmt, ap);
+  }
   va_end(ap);
+
+  const std::size_t len = std::strlen(line);
+  if (len + 2u < sizeof(line)) {
+    line[len] = '\r';
+    line[len + 1] = '\n';
+    line[len + 2] = '\0';
+  }
+
+  // 内核还没跑起来（main 里的初始化日志）：直接打印
+  if (g_queue == nullptr || osKernelGetState() != osKernelRunning) {
+    emit(line);
+    return;
+  }
+
+  // 内核运行中：入队，永不阻塞；队列满就丢并计数
+  if (osMessageQueuePut(g_queue, line, 0, 0) != osOK) {
+    ++g_dropped;
+  }
 }
 
 }  // namespace common
 
-/* --------------------------------------------------------------------------
- * 给 C 代码用的入口（CubeMX 生成的 main.c 是 C，不能直接用 LOG_ 宏）
- * 用法：common_log_info("cnt=%lu", (unsigned long)cnt);
- * ----------------------------------------------------------------------- */
+/* 给 C 代码用的入口（CubeMX 生成的 main.c 是 C） */
 extern "C" void common_log_info(const char* fmt, ...)
 {
+  char body[80];
   va_list ap;
   va_start(ap, fmt);
-  ::common::log_v(::common::LogLevel::Info, fmt, ap);
+  std::vsnprintf(body, sizeof(body), fmt, ap);
   va_end(ap);
+  ::common::log_impl(::common::LogLevel::Info, "%s", body);
 }

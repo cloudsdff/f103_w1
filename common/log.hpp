@@ -1,14 +1,14 @@
 /**
  * @file    log.hpp
- * @brief   统一日志接口 —— 任务01 工程要求 4（统一日志，禁止静默失败）
+ * @brief   统一日志接口（异步：队列 + 低优先级任务）
  *
- * 当前实现：同步输出（printf → bsp 层 → USART1），但加了一把互斥锁，
- *          保证多任务同时打印时不会把 newlib 的内部状态搞坏。
- * D13 计划：改成「队列 + 低优先级任务」异步输出（实测一行 33 B @115200 约 2.9 ms）。
+ * 为什么是异步：
+ *   实测一行 33 字节在 115200 下要占 2.9 ms（见 docs/02-UART实测记录.md）。
+ *   如果业务任务直接 printf，1 ms 周期的控制任务会被打印拖死。
  *
- * 用法：
- *   LOG_I("cnt=%lu", (unsigned long)cnt);
- *   LOG_E("i2c failed: %s", common::to_str(e));
+ * 现在的结构：
+ *   业务任务 → vsnprintf 格式化到栈上缓冲 → 入队（永不阻塞）→ Log 任务负责慢慢发串口
+ *   队列满时丢日志并计数，绝不阻塞业务。
  */
 #ifndef COMMON_LOG_HPP
 #define COMMON_LOG_HPP
@@ -22,16 +22,21 @@ namespace common {
 
 enum class LogLevel : std::uint8_t { Debug = 0, Info, Warn, Error };
 
-/** 编译期日志级别裁剪：0=只留 Error，1=+Warn，2=+Info，3=+Debug */
 #ifndef LOG_LEVEL
 #define LOG_LEVEL 3
 #endif
 
-/// 创建日志互斥锁。必须在启动调度器之前调用一次（app_init 里）。
+/// 创建日志队列与 Log 任务（在启动调度器之前调用）
 void log_init();
 
-/// 实际输出：加锁 → 打印时间戳与正文 → 解锁
+/// 实际入口：格式化 + 入队（内核未运行时退化为同步打印）
 void log_impl(LogLevel lv, const char* fmt, ...);
+
+/// 被丢弃的日志条数（队列满）
+std::uint32_t log_dropped();
+
+/// ???????????
+std::uint32_t log_sent();
 
 }  // namespace common
 
